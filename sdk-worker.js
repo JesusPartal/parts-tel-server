@@ -20,6 +20,11 @@ function loop() {
       const currentLap = telemetry.Lap?.value[0] ?? 1;
       const lapTimeCurrent = telemetry.LapCurrentLapTime?.value[0] ?? 0;
       const distancePercentage = (telemetry.LapDistPct?.value[0] ?? 0) * 100;
+      const fuelLevel = telemetry.FuelLevel?.value[0] ?? undefined;
+      const fuelLevelPct = telemetry.FuelLevelPct?.value[0] ?? undefined;
+      const lastLapTime = telemetry.LapLastLapTime?.value[0] ?? undefined;
+      const trackTemp = telemetry.TrackTemp?.value[0] ?? undefined;
+      const airTemp = telemetry.AirTemp?.value[0] ?? undefined;
 
       try {
         process.send({
@@ -27,12 +32,17 @@ function loop() {
           car: {
             speed: Math.floor(speed * 3.6),
             rpm: Math.floor(rpm),
-            gear
+            gear,
+            fuelLevel,
+            fuelLevelPct,
           },
           lapDetails: {
             currentLap,
             lapTimeCurrent,
-            distancePercentage
+            distancePercentage,
+            lastLapTime,
+            trackTemp,
+            airTemp,
           }
         });
       } catch (err) {
