@@ -25,6 +25,8 @@ function loop() {
       const lastLapTime = telemetry.LapLastLapTime?.value[0] ?? undefined;
       const trackTemp = telemetry.TrackTemp?.value[0] ?? undefined;
       const airTemp = telemetry.AirTemp?.value[0] ?? undefined;
+      const sessionTime = telemetry.SessionTime?.value[0] ?? undefined;
+      const sessionTimeRemain = telemetry.SessionTimeRemain?.value[0] ?? undefined;
 
       try {
         process.send({
@@ -43,6 +45,8 @@ function loop() {
             lastLapTime,
             trackTemp,
             airTemp,
+            sessionTime,
+            sessionTimeRemain,
           }
         });
       } catch (err) {
