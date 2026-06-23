@@ -97,7 +97,7 @@ function runAgent() {
     console.log(`Connecting to relay: ${RELAY_URL}`);
 
     try {
-      ws = new WebSocket(url);
+      ws = new WebSocket(url, { perMessageDeflate: false });
     } catch {
       console.error('Failed to create WebSocket, retrying in 5s...');
       reconnectTimer = setTimeout(connect, 5000);
