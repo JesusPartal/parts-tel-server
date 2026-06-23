@@ -6,13 +6,35 @@ import { dirname, join } from 'path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // --- Parse CLI args for relay mode ---
+// Auto-detect agent.config.json
+function loadAgentConfig() {
+  const fs = require('fs');
+  const configPath = process.argv.find(a => a.startsWith('--config='))?.split('=')[1]
+                  || process.env.PARTS_TEL_CONFIG
+                  || join(__dirname, 'agent.config.json');
+  try {
+    if (fs.existsSync(configPath)) {
+      const cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      console.log('Loaded agent config from', configPath);
+      return cfg;
+    }
+  } catch (err) {
+    console.warn('Failed to load config:', err.message);
+  }
+  return {};
+}
+const agentCfg = loadAgentConfig();
+
 const RELAY_URL = process.argv.find(a => a.startsWith('--relay='))?.split('=')[1]
-              || process.env.PARTS_TEL_RELAY;
+              || process.env.PARTS_TEL_RELAY
+              || agentCfg.relay;
 const DRIVER_ID = process.argv.find(a => a.startsWith('--driver='))?.split('=')[1]
                || process.env.PARTS_TEL_DRIVER_ID
+               || agentCfg.driverId
                || 'driver-1';
 const AUTH_TOKEN = process.argv.find(a => a.startsWith('--token='))?.split('=')[1]
-                || process.env.PARTS_TEL_TOKEN;
+                || process.env.PARTS_TEL_TOKEN
+                || agentCfg.token;
 
 if (RELAY_URL) {
   console.log(`Agent mode: relay=${RELAY_URL}, driver=${DRIVER_ID}`);
