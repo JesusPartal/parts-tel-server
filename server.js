@@ -2,13 +2,13 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { fork } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import fs from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // --- Parse CLI args for relay mode ---
 // Auto-detect agent.config.json
 function loadAgentConfig() {
-  const fs = require('fs');
   const configPath = process.argv.find(a => a.startsWith('--config='))?.split('=')[1]
                   || process.env.PARTS_TEL_CONFIG
                   || join(__dirname, 'agent.config.json');
