@@ -1,4 +1,3 @@
-import { WebSocketServer, WebSocket } from 'ws';
 import { fork } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -7,7 +6,6 @@ import fs from 'fs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // --- Parse CLI args for relay mode ---
-// Auto-detect agent.config.json
 function loadAgentConfig() {
   const configPath = process.argv.find(a => a.startsWith('--config='))?.split('=')[1]
                   || process.env.PARTS_TEL_CONFIG
@@ -44,8 +42,9 @@ if (RELAY_URL) {
   runStandalone();
 }
 
-// ────────────────────── Standalone mode (original) ──────────────────────
-function runStandalone() {
+// ────────────────────── Standalone mode ──────────────────────
+async function runStandalone() {
+  const { WebSocketServer, WebSocket } = await import('ws');
   const wss = new WebSocketServer({ port: 8080 });
   const clients = new Set();
   let currentWorker = null;
@@ -81,58 +80,47 @@ function runStandalone() {
   });
 }
 
-// ────────────────────── Relay agent mode ──────────────────────
+// ────────────────────── Relay agent mode (HTTP POST) ──────────────────────
 function runAgent() {
-  let ws = null;
-  let reconnectTimer = null;
+  let interval = null;
   let currentWorker = null;
+  let lastPacket = null;
 
-  function connect() {
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer);
-      reconnectTimer = null;
-    }
+  // Convert relay URL to HTTP ingest URL
+  const ingestUrl = RELAY_URL
+    .replace(/^ws(s)?:\/\//, (_, ssl) => ssl ? 'https://' : 'http://')
+    .replace(/\/ws\/telemetry\/agent\/?$/, '/api/telemetry/ingest');
 
-    const url = `${RELAY_URL}?token=${encodeURIComponent(AUTH_TOKEN || '')}&driverId=${encodeURIComponent(DRIVER_ID)}`;
-    console.log(`Connecting to relay: ${RELAY_URL}`);
+  const postUrl = `${ingestUrl}?token=${encodeURIComponent(AUTH_TOKEN || '')}&driverId=${encodeURIComponent(DRIVER_ID)}`;
 
+  async function sendPacket(packet) {
     try {
-      ws = new WebSocket(url, { perMessageDeflate: false });
-    } catch {
-      console.error('Failed to create WebSocket, retrying in 5s...');
-      reconnectTimer = setTimeout(connect, 5000);
-      return;
-    }
-
-    ws.on('open', () => {
-      console.log('Connected to relay');
-      if (!currentWorker) {
-        currentWorker = spawnWorker((packet) => {
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            packet.driverId = DRIVER_ID;
-            try { ws.send(JSON.stringify(packet)); } catch { /* ignore */ }
-          }
-        });
+      const res = await fetch(postUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(packet),
+      });
+      if (!res.ok) {
+        console.error(`Ingest error: ${res.status}`);
       }
-    });
-
-    ws.on('close', () => {
-      console.log('Relay disconnected, reconnecting in 5s...');
-      ws = null;
-      reconnectTimer = setTimeout(connect, 5000);
-    });
-
-    ws.on('error', (err) => {
-      console.error('WebSocket error:', err.message);
-    });
+    } catch { /* retry next tick */ }
   }
 
-  connect();
+  currentWorker = spawnWorker((packet) => {
+    lastPacket = packet;
+  });
+
+  interval = setInterval(() => {
+    if (lastPacket) {
+      sendPacket(lastPacket);
+    }
+  }, 200);
+
+  console.log('Connected to relay (HTTP ingest)');
 
   process.on('SIGINT', () => {
     if (currentWorker) currentWorker.kill();
-    if (ws) ws.close();
-    if (reconnectTimer) clearTimeout(reconnectTimer);
+    if (interval) clearInterval(interval);
     process.exit(0);
   });
 }
